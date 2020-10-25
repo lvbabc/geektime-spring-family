@@ -11,9 +11,9 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.hateoas.Link;
-import org.springframework.hateoas.PagedResources;
-import org.springframework.hateoas.Resource;
-import org.springframework.hateoas.Resources;
+import org.springframework.hateoas.PagedModel;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.CollectionModel;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
@@ -34,7 +34,7 @@ public class CustomerRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) throws Exception {
         Link coffeeLink = getLink(ROOT_URI,"coffees");
         readCoffeeMenu(coffeeLink);
-        Resource<Coffee> americano = addCoffee(coffeeLink);
+        EntityModel<Coffee> americano = addCoffee(coffeeLink);
 
         Link orderLink = getLink(ROOT_URI, "coffeeOrders");
         addOrder(orderLink, americano);
@@ -42,50 +42,50 @@ public class CustomerRunner implements ApplicationRunner {
     }
 
     private Link getLink(URI uri, String rel) {
-        ResponseEntity<Resources<Link>> rootResp =
+        ResponseEntity<CollectionModel<Link>> rootResp =
                 restTemplate.exchange(uri, HttpMethod.GET, null,
-                        new ParameterizedTypeReference<Resources<Link>>() {});
-        Link link = rootResp.getBody().getLink(rel);
+                        new ParameterizedTypeReference<CollectionModel<Link>>() {});
+        Link link = rootResp.getBody().getLink(rel).get();
         log.info("Link: {}", link);
         return link;
     }
 
     private void readCoffeeMenu(Link coffeeLink) {
-        ResponseEntity<PagedResources<Resource<Coffee>>> coffeeResp =
+        ResponseEntity<PagedModel<EntityModel<Coffee>>> coffeeResp =
                 restTemplate.exchange(coffeeLink.getTemplate().expand(),
                         HttpMethod.GET, null,
-                        new ParameterizedTypeReference<PagedResources<Resource<Coffee>>>() {});
+                        new ParameterizedTypeReference<PagedModel<EntityModel<Coffee>>>() {});
         log.info("Menu Response: {}", coffeeResp.getBody());
     }
 
-    private Resource<Coffee> addCoffee(Link link) {
+    private EntityModel<Coffee> addCoffee(Link link) {
         Coffee americano = Coffee.builder()
                 .name("americano")
                 .price(Money.of(CurrencyUnit.of("CNY"), 25.0))
                 .build();
         RequestEntity<Coffee> req =
                 RequestEntity.post(link.getTemplate().expand()).body(americano);
-        ResponseEntity<Resource<Coffee>> resp =
+        ResponseEntity<EntityModel<Coffee>> resp =
                 restTemplate.exchange(req,
-                        new ParameterizedTypeReference<Resource<Coffee>>() {});
+                        new ParameterizedTypeReference<EntityModel<Coffee>>() {});
         log.info("add Coffee Response: {}", resp);
         return resp.getBody();
     }
 
-    private void addOrder(Link link, Resource<Coffee> coffee) {
+    private void addOrder(Link link, EntityModel<Coffee> coffee) {
         CoffeeOrder newOrder = CoffeeOrder.builder()
                 .customer("Li Lei")
                 .state(OrderState.INIT)
                 .build();
         RequestEntity<?> req =
                 RequestEntity.post(link.getTemplate().expand()).body(newOrder);
-        ResponseEntity<Resource<CoffeeOrder>> resp =
+        ResponseEntity<EntityModel<CoffeeOrder>> resp =
                 restTemplate.exchange(req,
-                        new ParameterizedTypeReference<Resource<CoffeeOrder>>() {});
+                        new ParameterizedTypeReference<EntityModel<CoffeeOrder>>() {});
         log.info("add Order Response: {}", resp);
 
-        Resource<CoffeeOrder> order = resp.getBody();
-        Link items = order.getLink("items");
+        EntityModel<CoffeeOrder> order = resp.getBody();
+        Link items = order.getLink("items").get();
         req = RequestEntity.post(items.getTemplate().expand()).body(Collections.singletonMap("_links", coffee.getLink("self")));
         ResponseEntity<String> itemResp = restTemplate.exchange(req, String.class);
         log.info("add Order Items Response: {}", itemResp);
